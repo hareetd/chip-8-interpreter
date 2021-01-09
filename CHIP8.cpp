@@ -1,8 +1,10 @@
 #include "CHIP8.h"
 #include <fstream>
+#include <string.h>
 
 CHIP8::CHIP8() {
     PC = START_ADDRESS;
+    SP = 0;
 }
 
 void CHIP8::load(const char* ROM) {
@@ -28,35 +30,35 @@ void CHIP8::load(const char* ROM) {
     }
 }
 
-uint8_t CHIP8::readByte(uint16_t addr) {
-    // rmbr to handle out of bounds addr
-    if (addr > 0x1FF && addr < 0x1000) {
-        return memory[addr];
+uint8_t CHIP8::readByte(uint16_t address) {
+    // rmbr to handle out of bounds address
+    if (address > 0x1FF && address < 0x1000) {
+        return memory[address];
     } else {
         return -1;
     }
 } 
 
-void CHIP8::writeByte(uint16_t addr, uint8_t val) { 
-    if (addr > 0x1FF && addr < 0x1000) {
-        memory[addr] = val;
+void CHIP8::writeByte(uint16_t address, uint8_t val) { 
+    if (address > 0x1FF && address < 0x1000) {
+        memory[address] = val;
     }
 }
 
-uint16_t CHIP8::readWord(uint16_t addr) {
-    if (addr > 0x1FF && addr < 0x1000) {
-        uint16_t val = readByte(addr);
-        val = val << 8 | readByte(addr + 1);
+uint16_t CHIP8::readWord(uint16_t address) {
+    if (address > 0x1FF && address < 0x1000) {
+        uint16_t val = readByte(address);
+        val = val << 8 | readByte(address + 1);
         return val;
     } else {
         return -1;
     }
 }
 
-void CHIP8::writeWord(uint16_t addr, uint16_t val) {
-    if (addr > 0x1FF && addr < 0x1000) {
-        writeByte(addr, val >> 8);
-        writeByte(addr + 1, val & 0xFF);
+void CHIP8::writeWord(uint16_t address, uint16_t val) {
+    if (address > 0x1FF && address < 0x1000) {
+        writeByte(address, val >> 8);
+        writeByte(address + 1, val & 0xFF);
     } 
 }
 
@@ -71,27 +73,23 @@ void CHIP8::decodeAndExecute() {
     uint8_t group = (opcode & 0xF000u) >> 12;
     uint8_t regX = (opcode & 0x0F00u) >> 8;
     uint8_t regY = (opcode & 0x00F0u) >> 4;
-    uint8_t fourBitConst = opcode & 0x000Fu; 
-    uint8_t eightBitConst = opcode & 0x00FFu;
-    uint16_t addr = opcode & 0x0FFFu;
+    uint8_t fourBitConst = opcode & 0xFu; 
+    uint8_t eightBitConst = opcode & 0xFFu;
+    uint16_t address = opcode & 0xFFFu;
     
     switch(group) {
         case 0x0:
-            if (regX == 0) {
-                if (fourBitConst == 0) {
-                    OP_00E0();
-                } else {
-                    OP_00EE();
-                }
+            if (fourBitConst == 0) {
+                OP_00E0();
             } else {
-                OP_0NNN(addr);
+                OP_00EE();
             }
             break;
         case 0x1:
-            OP_1NNN(addr);
+            OP_1NNN(address);
             break;
         case 0x2:
-            OP_2NNN(addr);
+            OP_2NNN(address);
             break;
         case 0x3:
             OP_3XNN(regX, eightBitConst);
@@ -143,10 +141,10 @@ void CHIP8::decodeAndExecute() {
             OP_9XY0(regX, regY);
             break;
         case 0xA:
-            OP_ANNN(addr);
+            OP_ANNN(address);
             break;
         case 0xB:
-            OP_BNNN(addr);
+            OP_BNNN(address);
             break;
         case 0xC:
             OP_CXNN(regX, eightBitConst);
@@ -192,148 +190,178 @@ void CHIP8::decodeAndExecute() {
     }
 }
 
-void CHIP8::OP_0NNN(uint16_t addr) {
-
-}
-
 void CHIP8::OP_00E0() {
-
+    memset(display, 0, sizeof(display));
 }
 
 void CHIP8::OP_00EE() {
-
+    PC = stack[--SP];
 }
 
-void CHIP8::OP_1NNN(uint16_t addr) {
-    if (addr > 0x1FF && addr < 0x1000) {
-        PC = addr;
+void CHIP8::OP_1NNN(uint16_t address) {
+    if (address > 0x1FF && address < 0x1000) {
+        PC = address;
     }
 }
 
-void CHIP8::OP_2NNN(uint16_t addr) {
-
+void CHIP8::OP_2NNN(uint16_t address) {
+    stack[SP++] = PC;
+    PC = address;
 }
 
-void CHIP8::OP_3XNN(uint8_t X, uint8_t NN) {
-    if (registers[X] == NN) {
+void CHIP8::OP_3XNN(uint8_t VX, uint8_t byte) {
+    if (registers[VX] == byte) {
         PC += 2;
     }
 }
 
-void CHIP8::OP_4XNN(uint8_t X, uint8_t NN) {
-    if (registers[X] != NN) {
+void CHIP8::OP_4XNN(uint8_t VX, uint8_t byte) {
+    if (registers[VX] != byte) {
         PC += 2;
     }
 }
 
-void CHIP8::OP_5XY0(uint8_t X, uint8_t Y) {
+void CHIP8::OP_5XY0(uint8_t VX, uint8_t VY) {
+    if (registers[VX] == registers[VY]) {
+        PC += 2;
+    }
+}
+
+void CHIP8::OP_6XNN(uint8_t VX, uint8_t byte) {
+    registers[VX] = byte;
+}
+
+void CHIP8::OP_7XNN(uint8_t VX, uint8_t byte) {
+    registers[VX] += byte;
+}
+
+void CHIP8::OP_8XY0(uint8_t VX, uint8_t VY) {
+    registers[VX] = registers[VY];
+}
+
+void CHIP8::OP_8XY1(uint8_t VX, uint8_t VY) {
+    registers[VX] |= registers[VY];
+}
+
+void CHIP8::OP_8XY2(uint8_t VX, uint8_t VY) {
+    registers[VX] &= registers[VY];
+}
+
+void CHIP8::OP_8XY3(uint8_t VX, uint8_t VY) {
+    registers[VX] ^= registers[VY];
+}
+
+void CHIP8::OP_8XY4(uint8_t VX, uint8_t VY) {
+    uint16_t sum = registers[VX] + registers[VY];
+
+    if (sum > 255U) {
+        registers[0xF] = 1;
+    } else {
+        registers[0xF] = 0;
+    }
+
+    registers[VX] = sum & 0xFFu;
+}
+
+void CHIP8::OP_8XY5(uint8_t VX, uint8_t VY) {
+    if (registers[VY] > registers[VX]) {
+        registers[0xF] = 0;
+    } else {
+        registers[0xF] = 1;
+    }
+
+    registers[VX] -= registers[VY];
+}
+
+void CHIP8::OP_8XY6(uint8_t VX, uint8_t VY) {
+    registers[0xF] = registers[VY] & 0x1u;
+    registers[VX] = registers[VY] >> 1;
+}
+
+void CHIP8::OP_8XY7(uint8_t VX, uint8_t VY) {
+    if (registers[VX] > registers[VY]) {
+        registers[0xF] = 0;
+    } else {
+        registers[0xF] = 1;
+    }
+    
+    registers[VX] = registers[VY] - registers[VX];
+}
+
+void CHIP8::OP_8XYE(uint8_t VX, uint8_t VY) {
+    registers[0xF] = registers[VY] & 0x1000u;
+    registers[VX] = registers[VY] << 1;
+}
+
+void CHIP8::OP_9XY0(uint8_t VX, uint8_t VY) {
+    if (registers[VX] != registers[VY]) {
+        PC += 2;
+    }
+}
+
+void CHIP8::OP_ANNN(uint16_t address) {
+    I = address;
+}
+
+void CHIP8::OP_BNNN(uint16_t address) {
+    uint16_t jumpAddress = address + registers[0x0];
+    if  (jumpAddress > 0x1FF && jumpAddress < 0x1000) {
+        PC = jumpAddress;
+    }
+}
+
+void CHIP8::OP_CXNN(uint8_t VX, uint8_t byte) {
 
 }
 
-void CHIP8::OP_6XNN(uint8_t X, uint8_t NN) {
+void CHIP8::OP_DXYN(uint8_t VX, uint8_t VY, uint8_t height) {
+
+}
+
+void CHIP8::OP_EX9E(uint8_t VX) {
+
+}
+
+void CHIP8::OP_EXA1(uint8_t VX) {
+
+}
+
+void CHIP8::OP_FX07(uint8_t VX) {
+    registers[VX] = delayTimer;
+}
+
+void CHIP8::OP_FX0A(uint8_t VX) {
+
+}
+
+void CHIP8::OP_FX15(uint8_t VX) {
+    delayTimer = registers[VX];
+}
+
+void CHIP8::OP_FX18(uint8_t VX) {
+    soundTimer = registers[VX];
+}
+
+void CHIP8::OP_FX1E(uint8_t VX) {
+    I += registers[VX];
+}
+
+void CHIP8::OP_FX29(uint8_t VX) {
+
+}
+
+void CHIP8::OP_FX33(uint8_t VX) {
     
 }
 
-void CHIP8::OP_7XNN(uint8_t X, uint8_t NN) {
-    
+void CHIP8::OP_FX55(uint8_t VX) {
+    for (int i = 0; i <= VX; i++) {
+        writeByte(I++, registers[i]);
+    }
 }
 
-void CHIP8::OP_8XY0(uint8_t X, uint8_t Y) {
-    
-}
-
-void CHIP8::OP_8XY1(uint8_t X, uint8_t Y) {
-    
-}
-
-void CHIP8::OP_8XY2(uint8_t X, uint8_t Y) {
-    
-}
-
-void CHIP8::OP_8XY3(uint8_t X, uint8_t Y) {
-    
-}
-
-void CHIP8::OP_8XY4(uint8_t X, uint8_t Y) {
-    
-}
-
-void CHIP8::OP_8XY5(uint8_t X, uint8_t Y) {
-    
-}
-
-void CHIP8::OP_8XY6(uint8_t X, uint8_t Y) {
-    
-}
-
-void CHIP8::OP_8XY7(uint8_t X, uint8_t Y) {
-    
-}
-
-void CHIP8::OP_8XYE(uint8_t X, uint8_t Y) {
-    
-}
-
-void CHIP8::OP_9XY0(uint8_t X, uint8_t Y) {
-    
-}
-
-void CHIP8::OP_ANNN(uint16_t addr) {
-
-}
-
-void CHIP8::OP_BNNN(uint16_t addr) {
-
-}
-
-void CHIP8::OP_CXNN(uint8_t X, uint8_t NN) {
-
-}
-
-void CHIP8::OP_DXYN(uint8_t X, uint8_t Y, uint8_t N) {
-
-}
-
-void CHIP8::OP_EX9E(uint8_t X) {
-
-}
-
-void CHIP8::OP_EXA1(uint8_t X) {
-
-}
-
-void CHIP8::OP_FX07(uint8_t X) {
-
-}
-
-void CHIP8::OP_FX0A(uint8_t X) {
-
-}
-
-void CHIP8::OP_FX15(uint8_t X) {
-
-}
-
-void CHIP8::OP_FX18(uint8_t X) {
-
-}
-
-void CHIP8::OP_FX1E(uint8_t X) {
-
-}
-
-void CHIP8::OP_FX29(uint8_t X) {
-
-}
-
-void CHIP8::OP_FX33(uint8_t X) {
-
-}
-
-void CHIP8::OP_FX55(uint8_t X) {
-
-}
-
-void CHIP8::OP_FX65(uint8_t X) {
-
+void CHIP8::OP_FX65(uint8_t VX) {
+    for (int i = 0; i <= VX; i++) {
+        registers[i] = readByte(I++);
+    }
 }
