@@ -3,8 +3,11 @@
 #include <string.h>
 
 CHIP8::CHIP8() {
-    PC = START_ADDRESS;
+    PC = PROGRAM_START_ADDRESS;
     SP = 0;
+    generator.seed(std::chrono::system_clock::now().time_since_epoch().count());
+    distribution = std::uniform_int_distribution<uint8_t>(0, 255U);
+    loadFont();
 }
 
 void CHIP8::load(const char* ROM) {
@@ -23,10 +26,37 @@ void CHIP8::load(const char* ROM) {
 
         // load the ROM data into memory starting at address 0x200
         for (int i = 0; i < length; i++) {
-            writeByte(START_ADDRESS + i, buffer[i]);
+            writeByte(PROGRAM_START_ADDRESS + i, buffer[i]);
         }
 
         delete[] buffer;
+    }
+}
+
+void CHIP8::loadFont() {
+
+    uint8_t fontSet[FONT_SET_SIZE] = 
+    {
+        0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
+        0x20, 0x60, 0x20, 0x20, 0x70, // 1
+        0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
+        0xF0, 0x10, 0xF0, 0x10, 0xF0, // 3
+        0x90, 0x90, 0xF0, 0x10, 0x10, // 4
+        0xF0, 0x80, 0xF0, 0x10, 0xF0, // 5
+        0xF0, 0x80, 0xF0, 0x90, 0xF0, // 6
+        0xF0, 0x10, 0x20, 0x40, 0x40, // 7
+        0xF0, 0x90, 0xF0, 0x90, 0xF0, // 8
+        0xF0, 0x90, 0xF0, 0x10, 0xF0, // 9
+        0xF0, 0x90, 0xF0, 0x90, 0x90, // A
+        0xE0, 0x90, 0xE0, 0x90, 0xE0, // B
+        0xF0, 0x80, 0x80, 0x80, 0xF0, // C
+        0xE0, 0x90, 0x90, 0x90, 0xE0, // D
+        0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
+        0xF0, 0x80, 0xF0, 0x80, 0x80  // F
+    };
+
+    for (unsigned int i = 0; i < FONT_SET_SIZE; i++) {
+        writeByte(FONT_SET_START_ADDRESS + i, fontSet[i]);
     }
 }
 
@@ -311,7 +341,7 @@ void CHIP8::OP_BNNN(uint16_t address) {
 }
 
 void CHIP8::OP_CXNN(uint8_t VX, uint8_t byte) {
-
+    registers[VX] = distribution(generator) & byte;
 }
 
 void CHIP8::OP_DXYN(uint8_t VX, uint8_t VY, uint8_t height) {
@@ -347,11 +377,22 @@ void CHIP8::OP_FX1E(uint8_t VX) {
 }
 
 void CHIP8::OP_FX29(uint8_t VX) {
-
+    I = FONT_SET_START_ADDRESS + (unsigned int)registers[VX] * NUM_BYTES_PER_FONT;
 }
 
-void CHIP8::OP_FX33(uint8_t VX) {
-    
+void CHIP8::OP_FX33(uint8_t VX) { 
+    uint8_t val = registers[VX];
+
+    // Least-significant decimal digit
+    writeByte(I, val % 10);
+    val /= 10;
+
+    // Middle decimal digit
+    writeByte(I + 1, val % 10);
+    val /= 10;
+
+    // Most-significant decimal digit
+    writeByte(I + 2, val % 10);
 }
 
 void CHIP8::OP_FX55(uint8_t VX) {

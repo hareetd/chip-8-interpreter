@@ -1,4 +1,6 @@
 #include <cstdint>
+#include <chrono>
+#include <random>
 
 class CHIP8 
 {
@@ -14,9 +16,18 @@ public:
     uint8_t registers[16];
     uint8_t keypad[16];
     uint16_t opcode;
-    uint16_t START_ADDRESS = 0x200;
+    
 private:
+    const unsigned int PROGRAM_START_ADDRESS = 0x200;
+    const unsigned int FONT_SET_START_ADDRESS = 0x50;
+    const unsigned int FONT_SET_SIZE = 80;
+    const unsigned int NUM_BYTES_PER_FONT = 5;
+
+    std::default_random_engine generator;
+    std::uniform_int_distribution<uint8_t> distribution;
+
     void load(const char* ROM);
+    void loadFont();
     uint8_t readByte(uint16_t address);
     void writeByte(uint16_t address, uint8_t val);
     uint16_t readWord(uint16_t address);
