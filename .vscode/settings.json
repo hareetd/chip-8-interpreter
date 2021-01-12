@@ -44,6 +44,7 @@
         "iterator": "cpp",
         "numeric": "cpp",
         "random": "cpp",
-        "ratio": "cpp"
+        "ratio": "cpp",
+        "iostream": "cpp"
     }
 }

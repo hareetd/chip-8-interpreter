@@ -1,5 +1,6 @@
 #include "CHIP8.h"
 #include <fstream>
+#include <SDL2/SDL.h>
 #include <string.h>
 
 CHIP8::CHIP8() {

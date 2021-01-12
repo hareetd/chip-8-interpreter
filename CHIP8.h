@@ -26,6 +26,7 @@ private:
     std::default_random_engine generator;
     std::uniform_int_distribution<uint8_t> distribution;
 
+    CHIP8();
     void load(const char* ROM);
     void loadFont();
     uint8_t readByte(uint16_t address);
